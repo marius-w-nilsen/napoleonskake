@@ -1,0 +1,48 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "${{BOT_ID}}",
+  "developer": {
+    "name": "Friday Cake Committee",
+    "websiteUrl": "https://example.com",
+    "privacyUrl": "https://example.com/privacy",
+    "termsOfUseUrl": "https://example.com/terms"
+  },
+  "name": {
+    "short": "Napoleonskake",
+    "full": "Napoleonskake Friday Score"
+  },
+  "description": {
+    "short": "Score the Friday Napoleonskake and track it over time.",
+    "full": "Every Friday at lunch the bot posts a scoring card. Everyone rates the Napoleonskake 1–10, optionally with a comment, and the bot keeps the history: today's average, the trend over recent Fridays, the best and worst Friday ever, and who the most generous and harshest scorers are."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#F3D9A4",
+  "bots": [
+    {
+      "botId": "${{BOT_ID}}",
+      "scopes": [ "team", "groupChat", "personal" ],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": [ "team", "groupChat", "personal" ],
+          "commands": [
+            { "title": "score", "description": "score 1-10 [comment] – rate today's cake" },
+            { "title": "results", "description": "Today's scores and average" },
+            { "title": "history", "description": "Trend over the last Fridays" },
+            { "title": "leaderboard", "description": "Best/worst Friday, most generous and harshest scorers" },
+            { "title": "card", "description": "Post the scoring card again" },
+            { "title": "help", "description": "What can I do?" }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": [ "identity", "messageTeamMembers" ],
+  "validDomains": []
+}

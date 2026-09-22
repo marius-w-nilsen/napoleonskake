@@ -1,0 +1,38 @@
+# Self-hosted setup. TLS and the public host name are handled outside this file (e.g. a Cloudflare Tunnel).
+#
+#   cp .env.example .env      # fill in the MicrosoftApp* values
+#   docker compose up -d --build
+#
+# The bot listens on 127.0.0.1:3978. Point your tunnel's public hostname at http://localhost:3978
+# and set the Azure Bot messaging endpoint to https://<your-host>/api/messages.
+#
+# If cloudflared runs as a container in another compose project, it cannot reach the host's localhost.
+# Then either give the tunnel service "network_mode: host", or share a Docker network: uncomment the
+# "networks" blocks below, create it once with "docker network create tunnel", attach cloudflared to it,
+# and use http://napoleonskake-bot:8080 as the tunnel target.
+
+services:
+  bot:
+    build: .
+    image: napoleonskake-bot
+    container_name: napoleonskake-bot
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - bot-db:/app/db
+    ports:
+      - "127.0.0.1:3978:8080"
+    # networks:
+    #   - tunnel
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot-db:
+
+# networks:
+#   tunnel:
+#     external: true

@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+**/db/
+**/*.db
+tests/
+appPackage/
+scripts/
+publish/
+publish.zip
+.git/
+.vs/
+.idea/
+*.md
+.env
+.env.*
+docker-compose*.yml
+Dockerfile

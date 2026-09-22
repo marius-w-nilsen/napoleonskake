@@ -1,0 +1,24 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.swp
+
+# Runtime data (the SQLite file lives in db/, deliberately not "data/" which would clash with src/**/Data/ on Windows)
+db/
+*.db
+*.db-shm
+*.db-wal
+
+# Built Teams app packages
+appPackage/*.zip
+
+# Local secrets
+appsettings.Development.json
+appsettings.Local.json
+.env
+
+# Deploy script output
+publish/
+publish.zip
