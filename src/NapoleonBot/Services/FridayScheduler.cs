@@ -112,8 +112,22 @@ public sealed class FridayScheduler(
 
         try
         {
-            await adapter.ContinueConversationAsync(configuration["MicrosoftAppId"] ?? string.Empty, reference, action.Invoke, ct);
-            logger.LogInformation("Did {What} in {Conversation}", what, conversationId);
+            // The adapter's turn error handler swallows exceptions thrown inside the callback, so track completion explicitly.
+            var completed = false;
+            await adapter.ContinueConversationAsync(
+                configuration["MicrosoftAppId"] ?? string.Empty,
+                reference,
+                async (turnContext, innerCt) =>
+                {
+                    await action(turnContext, innerCt);
+                    completed = true;
+                },
+                ct);
+
+            if (completed)
+                logger.LogInformation("Did {What} in {Conversation}", what, conversationId);
+            else
+                logger.LogWarning("Could not {What} in {Conversation}; will retry next minute (see turn error above)", what, conversationId);
         }
         catch (Exception ex)
         {

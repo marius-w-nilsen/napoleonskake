@@ -13,6 +13,11 @@ public class CommandParserTests
     [InlineData("/score 3", 3, null)]
     [InlineData("rate 9", 9, null)]
     [InlineData("gi 6 helt greit", 6, "helt greit")]
+    [InlineData("8, it was gooooD", 8, "it was gooooD")]
+    [InlineData("8 - a bit dry", 8, "a bit dry")]
+    [InlineData("score: 9! best so far", 9, "best so far")]
+    [InlineData("7.", 7, null)]
+    [InlineData("10/10!", 10, null)]
     public void Parses_scores_with_optional_comment(string text, int expectedScore, string? expectedComment)
     {
         var command = Assert.IsType<ScoreCommand>(CommandParser.Parse(text));

@@ -9,6 +9,16 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
+    },
+    "Emulator": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:3979",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Emulator",
+        "Storage__ConnectionString": "Data Source=db/emulator.db"
+      }
     }
   }
 }

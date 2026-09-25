@@ -49,6 +49,14 @@ dotnet run --project src/NapoleonBot
 
 The bot listens on `http://localhost:3978`. Without app credentials it accepts unauthenticated requests, which is what the [Bot Framework Emulator](https://github.com/microsoft/BotFramework-Emulator/releases) sends. Point the emulator at `http://localhost:3978/api/messages` and type `help`.
 
+Once you have stored real credentials in user secrets (step 2 below), the default profile loads them and rejects the Emulator's unsigned requests with 401. The Emulator cannot sign requests for a single-tenant registration, so use the `Emulator` launch profile instead. It skips user secrets, listens on port 3979, and uses a separate database (`db/emulator.db`) so Emulator test scores never mix with real ones:
+
+```powershell
+dotnet run --project src/NapoleonBot --launch-profile Emulator
+```
+
+Point the Emulator at `http://localhost:3979/api/messages` and leave the app id and password empty. Both profiles can run at the same time.
+
 To test the Friday flow without waiting for Friday, temporarily set `Schedule:CakeDay` to today, `Schedule:PostTime` to a minute from now and `Schedule:ScoringCloses` a few minutes after that, e.g.
 
 ```powershell
@@ -71,6 +79,7 @@ az group create -n $rg -l norwayeast
 
 # App registration (single tenant) and a client secret
 $appId = az ad app create --display-name "Napoleonskake Bot" --sign-in-audience AzureADMyOrg --query appId -o tsv
+az ad sp create --id $appId        # required: without a service principal the bot cannot get a token to reply (AADSTS7000229)
 $secret = az ad app credential reset --id $appId --append --display-name bot --years 2 --query password -o tsv
 $tenantId = az account show --query tenantId -o tsv
 

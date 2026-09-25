@@ -179,8 +179,15 @@ public sealed class NapoleonTeamsBot(
         turnContext.SendActivityAsync(
             MessageFactory.Text($"Hei! I keep score of the {_schedule.CakeDay} Napoleonskake. I'll post a scoring card here every {_schedule.CakeDay} at {_schedule.PostTime}.\n\n" + CardFactory.HelpText(_schedule)), ct);
 
+    // "Test in Web Chat" in the Azure portal uses these channels. Those conversations die when the browser tab closes,
+    // so the Friday scheduler must not try to post into them.
+    private static readonly HashSet<string> TransientChannels = [Channels.Webchat, Channels.Directline];
+
     private async Task RememberConversationAsync(ITurnContext turnContext, CancellationToken ct)
     {
+        if (TransientChannels.Contains(turnContext.Activity.ChannelId))
+            return;
+
         var reference = turnContext.Activity.GetConversationReference();
         var key = ScoringCardPublisher.ConversationKey(reference.Conversation.Id);
         // Store the channel root so the Friday card lands as a new post rather than inside an old thread.

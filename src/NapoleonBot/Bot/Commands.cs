@@ -38,7 +38,8 @@ public static partial class CommandParser
             return new HelpCommand();
 
         var parts = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var head = parts[0].ToLowerInvariant();
+        // "8, it was good" or "score: 8" – punctuation glued to the first word should not hide the keyword or number.
+        var head = parts[0].ToLowerInvariant().TrimEnd(Punctuation);
         var rest = parts.Length > 1 ? parts[1] : null;
 
         if (ScoreToken().IsMatch(head))
@@ -60,14 +61,17 @@ public static partial class CommandParser
         return new HelpCommand();
     }
 
+    private static readonly char[] Punctuation = [',', '.', ':', ';', '!', '-', '–', '—'];
+
     private static BotCommand ParseScore(string token, string? comment)
     {
-        var match = ScoreToken().Match(token);
+        var match = ScoreToken().Match(token.TrimEnd(Punctuation));
         if (!match.Success || !int.TryParse(match.Groups[1].Value, out var score) || score is < 1 or > 10)
             return new InvalidScoreCommand(token);
 
         var stripped = comment is null ? null : LeadingOutOfTen().Replace(comment, string.Empty);
-        var cleanComment = string.IsNullOrWhiteSpace(stripped) ? null : stripped.Trim();
-        return new ScoreCommand(score, cleanComment);
+        // Drop separators people put between the number and the comment: "8 - crispy", "8: crispy".
+        var cleanComment = stripped?.Trim().TrimStart(Punctuation).Trim();
+        return new ScoreCommand(score, string.IsNullOrEmpty(cleanComment) ? null : cleanComment);
     }
 }
