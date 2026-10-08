@@ -40,7 +40,7 @@ public sealed class ScoreStore
                 cake_date  TEXT    NOT NULL,
                 user_id    TEXT    NOT NULL,
                 user_name  TEXT    NOT NULL,
-                score      INTEGER NOT NULL CHECK (score BETWEEN 1 AND 10),
+                score      INTEGER NOT NULL CHECK (score >= 1),
                 comment    TEXT,
                 created_at TEXT    NOT NULL,
                 PRIMARY KEY (cake_date, user_id)
@@ -81,8 +81,8 @@ public sealed class ScoreStore
     /// </summary>
     public async Task<bool> UpsertScoreAsync(ScoreEntry entry, CancellationToken ct = default)
     {
-        if (entry.Score is < 1 or > 10)
-            throw new ArgumentOutOfRangeException(nameof(entry), "Score must be between 1 and 10.");
+        if (!ScoreScale.IsValid(entry.Score))
+            throw new ArgumentOutOfRangeException(nameof(entry), $"Score must be between {ScoreScale.Min} and {ScoreScale.Max}.");
 
         await using var conn = Open();
         await using var exists = conn.CreateCommand();

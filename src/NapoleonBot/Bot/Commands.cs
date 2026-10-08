@@ -1,13 +1,14 @@
 using System.Text.RegularExpressions;
+using NapoleonBot.Data;
 
 namespace NapoleonBot.Bot;
 
 public abstract record BotCommand;
 
-/// <summary>"score 8 crispy today" or just "8".</summary>
+/// <summary>"score 5 crispy today", just "5", or a die face "⚄".</summary>
 public sealed record ScoreCommand(int Score, string? Comment) : BotCommand;
 
-/// <summary>A score attempt that is not a number between 1 and 10.</summary>
+/// <summary>A score attempt that is not a number on the scale.</summary>
 public sealed record InvalidScoreCommand(string Raw) : BotCommand;
 
 public sealed record ResultsCommand : BotCommand;
@@ -18,18 +19,20 @@ public sealed record HelpCommand : BotCommand;
 
 public static partial class CommandParser
 {
-    private static readonly string[] ScoreVerbs = ["score", "rate", "vote", "gi", "poeng"];
+    private static readonly string[] ScoreVerbs = ["score", "rate", "vote", "gi", "poeng", "terning"];
     private static readonly string[] ResultsWords = ["results", "result", "today", "stats", "score?", "resultat"];
     private static readonly string[] HistoryWords = ["history", "trend", "historikk"];
     private static readonly string[] LeaderboardWords = ["leaderboard", "top", "toppliste", "alltime", "all-time"];
     private static readonly string[] CardWords = ["card", "poll", "kort", "post"];
+    private static readonly char[] Punctuation = [',', '.', ':', ';', '!', '-', '–', '—'];
 
-    [GeneratedRegex(@"^(\d{1,2})(?:\s*/\s*10)?$")]
+    // "5", "5/6", "5 / 6"
+    [GeneratedRegex(@"^(\d{1,2})(?:\s*/\s*6)?$")]
     private static partial Regex ScoreToken();
 
-    // "7 / 10 soggy" splits as head "7", rest "/ 10 soggy": drop the "/ 10" so it does not end up in the comment.
-    [GeneratedRegex(@"^/\s*10\b\s*")]
-    private static partial Regex LeadingOutOfTen();
+    // "5 / 6 soggy" splits as head "5", rest "/ 6 soggy": drop the "/ 6" so it does not end up in the comment.
+    [GeneratedRegex(@"^/\s*6\b\s*")]
+    private static partial Regex LeadingOutOfSix();
 
     public static BotCommand Parse(string? text)
     {
@@ -38,11 +41,11 @@ public static partial class CommandParser
             return new HelpCommand();
 
         var parts = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        // "8, it was good" or "score: 8" – punctuation glued to the first word should not hide the keyword or number.
+        // "5, it was good" or "score: 5" – punctuation glued to the first word should not hide the keyword or number.
         var head = parts[0].ToLowerInvariant().TrimEnd(Punctuation);
         var rest = parts.Length > 1 ? parts[1] : null;
 
-        if (ScoreToken().IsMatch(head))
+        if (ScoreToken().IsMatch(head) || ScoreScale.FromDie(head) is not null)
             return ParseScore(head, rest);
 
         if (ScoreVerbs.Contains(head))
@@ -61,16 +64,23 @@ public static partial class CommandParser
         return new HelpCommand();
     }
 
-    private static readonly char[] Punctuation = [',', '.', ':', ';', '!', '-', '–', '—'];
-
     private static BotCommand ParseScore(string token, string? comment)
     {
-        var match = ScoreToken().Match(token.TrimEnd(Punctuation));
-        if (!match.Success || !int.TryParse(match.Groups[1].Value, out var score) || score is < 1 or > 10)
-            return new InvalidScoreCommand(token);
+        var clean = token.TrimEnd(Punctuation);
+        int score;
+        if (ScoreScale.FromDie(clean) is { } fromDie)
+        {
+            score = fromDie;
+        }
+        else
+        {
+            var match = ScoreToken().Match(clean);
+            if (!match.Success || !int.TryParse(match.Groups[1].Value, out score) || !ScoreScale.IsValid(score))
+                return new InvalidScoreCommand(token);
+        }
 
-        var stripped = comment is null ? null : LeadingOutOfTen().Replace(comment, string.Empty);
-        // Drop separators people put between the number and the comment: "8 - crispy", "8: crispy".
+        var stripped = comment is null ? null : LeadingOutOfSix().Replace(comment, string.Empty);
+        // Drop separators people put between the number and the comment: "5 - crispy", "5: crispy".
         var cleanComment = stripped?.Trim().TrimStart(Punctuation).Trim();
         return new ScoreCommand(score, string.IsNullOrEmpty(cleanComment) ? null : cleanComment);
     }

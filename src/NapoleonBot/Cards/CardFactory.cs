@@ -20,30 +20,31 @@ public static class CardFactory
 
     public static string ScoreLabel(int score) => score switch
     {
-        10 => "Legendary. Frame it.",
-        9 => "Bakery-grade",
-        8 => "Very good",
-        7 => "Solid Friday cake",
-        6 => "Fine. Just fine.",
-        5 => "It's cake, I guess",
-        4 => "Something went wrong in the kitchen",
-        3 => "Custard crimes were committed",
-        2 => "Soggy disappointment",
+        6 => "Legendary. Frame it.",
+        5 => "Bakery-grade",
+        4 => "Solid Friday cake",
+        3 => "It's cake, I guess",
+        2 => "Custard crimes were committed",
         _ => "Call the authorities",
     };
 
-    public static string Verdict(double average) => ScoreLabel(Math.Clamp((int)Math.Round(average, MidpointRounding.AwayFromZero), 1, 10));
+    /// <summary>"⚄ 5" – die face plus number, used wherever a single score is shown.</summary>
+    public static string Dice(int score) => $"{ScoreScale.Die(score)} {score}";
+
+    public static int Rounded(double average) => Math.Clamp((int)Math.Round(average, MidpointRounding.AwayFromZero), ScoreScale.Min, ScoreScale.Max);
+
+    public static string Verdict(double average) => ScoreLabel(Rounded(average));
 
     public static string Bar(double average)
     {
-        var filled = Math.Clamp((int)Math.Round(average, MidpointRounding.AwayFromZero), 0, 10);
-        return new string('█', filled) + new string('░', 10 - filled);
+        var filled = Math.Clamp((int)Math.Round(average, MidpointRounding.AwayFromZero), 0, ScoreScale.Max);
+        return new string('█', filled) + new string('░', ScoreScale.Max - filled);
     }
 
     public static string HelpText(ScheduleOptions schedule) => $"""
         **🍰 Napoleonskake scoring**
 
-        - `score 8` or just `8` – score today's cake (1–10). Add a comment: `score 8 extra crispy today`
+        - `score 5`, just `5`, or a die face `⚄` – score today's cake (1–6). Add a comment: `score 5 extra crispy today`
         - `results` – today's scores and average
         - `history` – the last Fridays, as a trend
         - `leaderboard` – best and worst Friday ever, most generous and harshest scorers
@@ -67,18 +68,18 @@ public static class CardFactory
 
         if (isOpen)
         {
-            var choices = Enumerable.Range(1, 10).Reverse()
-                .Select(n => new { title = $"{n} – {ScoreLabel(n)}", value = n.ToString(CultureInfo.InvariantCulture) })
+            var choices = Enumerable.Range(ScoreScale.Min, ScoreScale.Max - ScoreScale.Min + 1).Reverse()
+                .Select(n => new { title = $"{Dice(n)} – {ScoreLabel(n)}", value = n.ToString(CultureInfo.InvariantCulture) })
                 .ToArray();
 
-            body.Add(new { type = "TextBlock", text = $"Lunch verdict time. How was today's cake? Scoring closes at {closesAt}.", wrap = true });
+            body.Add(new { type = "TextBlock", text = $"Lunch verdict time. Roll the die on today's cake. Scoring closes at {closesAt}.", wrap = true });
             body.Add(new { type = "TextBlock", text = StatusLine(day), isSubtle = true, wrap = true, spacing = "Small" });
             body.Add(new
             {
                 type = "Input.ChoiceSet",
                 id = "score",
                 style = "compact",
-                placeholder = "Pick a score (1–10)",
+                placeholder = "Pick a score (1–6)",
                 isRequired = true,
                 errorMessage = "Pick a score first.",
                 choices,
@@ -104,7 +105,7 @@ public static class CardFactory
 
         var latest = day.Scores.MaxBy(s => s.CreatedAt)!;
         var plural = day.Count == 1 ? "score" : "scores";
-        return $"{day.Count} {plural} so far · average {FormatAverage(day.Average)} {Bar(day.Average)} · latest: {latest.UserName} gave {latest.Score}";
+        return $"{day.Count} {plural} so far · average {FormatAverage(day.Average)} {Bar(day.Average)} · latest: {latest.UserName} rolled {Dice(latest.Score)}";
     }
 
     private static string FinalLine(DaySummary day) => day.Count == 0
@@ -135,7 +136,7 @@ public static class CardFactory
                     new
                     {
                         type = "Column", width = "auto",
-                        items = new object[] { new { type = "TextBlock", size = "ExtraLarge", weight = "Bolder", text = $"{FormatAverage(day.Average)}" } },
+                        items = new object[] { new { type = "TextBlock", size = "ExtraLarge", weight = "Bolder", text = $"{ScoreScale.Die(Rounded(day.Average))} {FormatAverage(day.Average)}" } },
                     },
                     new
                     {
@@ -154,7 +155,7 @@ public static class CardFactory
                 facts = day.Scores
                     .OrderByDescending(s => s.Score)
                     .ThenBy(s => s.CreatedAt)
-                    .Select(s => new { title = s.UserName, value = $"{s.Score}/10" + (s.Comment is null ? "" : $" – {s.Comment}") })
+                    .Select(s => new { title = s.UserName, value = Dice(s.Score) + (s.Comment is null ? "" : $" – {s.Comment}") })
                     .ToArray(),
             });
         }

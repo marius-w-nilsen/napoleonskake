@@ -18,13 +18,14 @@ public class CardFactoryTests
     }
 
     [Fact]
-    public void Scoring_card_offers_ten_choices_and_carries_the_cake_date()
+    public void Scoring_card_offers_six_dice_choices_and_carries_the_cake_date()
     {
         var card = Content(CardFactory.ScoringCard(Friday, new DaySummary(Friday, []), isOpen: true, closesAt: "17:00"));
 
         var choiceSet = card["body"]!.Single(b => (string?)b["type"] == "Input.ChoiceSet");
         var values = choiceSet["choices"]!.Select(c => (string)c["value"]!).ToList();
-        Assert.Equal(Enumerable.Range(1, 10).Reverse().Select(n => n.ToString()), values);
+        Assert.Equal(["6", "5", "4", "3", "2", "1"], values);
+        Assert.StartsWith("⚅ 6 – ", (string?)choiceSet["choices"]![0]!["title"]);
 
         var submit = card["actions"]!.First();
         Assert.Equal("score", (string?)submit["data"]!["action"]);
@@ -37,38 +38,38 @@ public class CardFactoryTests
     [Fact]
     public void Scoring_card_shows_running_average_and_latest_scorer()
     {
-        var day = new DaySummary(Friday, [Score("Kari", 8, minute: 1), Score("Ola", 5, minute: 2)]);
+        var day = new DaySummary(Friday, [Score("Kari", 6, minute: 1), Score("Ola", 3, minute: 2)]);
         var text = Content(CardFactory.ScoringCard(Friday, day, isOpen: true, closesAt: "17:00")).ToString();
 
         Assert.Contains("2 scores so far", text);
-        Assert.Contains("average 6.5", text);
-        Assert.Contains("latest: Ola gave 5", text);
+        Assert.Contains("average 4.5", text);
+        Assert.Contains("latest: Ola rolled ⚂ 3", text);
     }
 
     [Fact]
     public void Closed_scoring_card_has_no_inputs_and_shows_final_tally()
     {
-        var day = new DaySummary(Friday, [Score("Kari", 8), Score("Ola", 5)]);
+        var day = new DaySummary(Friday, [Score("Kari", 6), Score("Ola", 3)]);
         var card = Content(CardFactory.ScoringCard(Friday, day, isOpen: false, closesAt: "17:00"));
 
         Assert.DoesNotContain(card["body"]!, b => ((string?)b["type"])!.StartsWith("Input."));
         var actionTitles = card["actions"]!.Select(a => (string?)a["title"]).ToList();
         Assert.Equal(["Show results"], actionTitles);
         Assert.Contains("Scoring closed at 17:00", card.ToString());
-        Assert.Contains("Final: 6.5", card.ToString());
+        Assert.Contains("Final: 4.5", card.ToString());
     }
 
     [Fact]
-    public void Results_card_lists_scores_highest_first_with_comments()
+    public void Results_card_lists_scores_highest_first_with_dice_and_comments()
     {
-        var day = new DaySummary(Friday, [Score("Kari", 6, "a bit dry"), Score("Ola", 10)]);
+        var day = new DaySummary(Friday, [Score("Kari", 4, "a bit dry"), Score("Ola", 6)]);
         var card = Content(CardFactory.ResultsCard(day));
 
         var facts = card["body"]!.Single(b => (string?)b["type"] == "FactSet")["facts"]!;
         Assert.Equal("Ola", (string?)facts[0]!["title"]);
-        Assert.Equal("10/10", (string?)facts[0]!["value"]);
-        Assert.Equal("6/10 – a bit dry", (string?)facts[1]!["value"]);
-        Assert.Contains("8.0", card.ToString());
+        Assert.Equal("⚅ 6", (string?)facts[0]!["value"]);
+        Assert.Equal("⚃ 4 – a bit dry", (string?)facts[1]!["value"]);
+        Assert.Contains("⚄ 5.0", card.ToString());
     }
 
     [Fact]
@@ -85,27 +86,36 @@ public class CardFactoryTests
     {
         var scorers = new List<ScorerStats>
         {
-            new("kari", "Kari", 3, 9.0),
-            new("ola", "Ola", 2, 4.0),
+            new("kari", "Kari", 3, 5.5),
+            new("ola", "Ola", 2, 2.0),
             new("per", "Per", 1, 1.0), // only one score: not a regular yet
         };
-        var best = new DaySummary(Friday, [Score("Kari", 9)]);
-        var all = new AllTimeStats(2, 6, 6.5, best, best);
+        var best = new DaySummary(Friday, [Score("Kari", 6)]);
+        var all = new AllTimeStats(2, 6, 4.0, best, best);
 
         var text = Content(CardFactory.LeaderboardCard(scorers, all)).ToString();
-        Assert.Contains("Kari – averages 9.0", text);
-        Assert.Contains("Ola – averages 4.0", text);
+        Assert.Contains("Kari – averages 5.5", text);
+        Assert.Contains("Ola – averages 2.0", text);
         Assert.DoesNotContain("Per – averages", text);
         Assert.Contains("Most dedicated", text);
     }
 
     [Theory]
-    [InlineData(10.0, "██████████")]
-    [InlineData(7.4, "███████░░░")]
-    [InlineData(7.5, "████████░░")]
-    [InlineData(0.0, "░░░░░░░░░░")]
-    public void Bar_rounds_to_nearest_block(double average, string expected)
+    [InlineData(6.0, "██████")]
+    [InlineData(4.4, "████░░")]
+    [InlineData(4.5, "█████░")]
+    [InlineData(0.0, "░░░░░░")]
+    public void Bar_rounds_to_nearest_block_out_of_six(double average, string expected)
     {
         Assert.Equal(expected, CardFactory.Bar(average));
+    }
+
+    [Theory]
+    [InlineData(1, "⚀")]
+    [InlineData(6, "⚅")]
+    public void Die_faces(int score, string expected)
+    {
+        Assert.Equal(expected, ScoreScale.Die(score));
+        Assert.Equal(score, ScoreScale.FromDie(expected));
     }
 }

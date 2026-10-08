@@ -29,33 +29,33 @@ public sealed class ScoreStoreTests : IDisposable
     [Fact]
     public async Task First_score_is_new_and_second_replaces_it()
     {
-        Assert.True(await _store.UpsertScoreAsync(Score(Friday3, "Kari", 6)));
-        Assert.False(await _store.UpsertScoreAsync(Score(Friday3, "Kari", 9, "changed my mind")));
+        Assert.True(await _store.UpsertScoreAsync(Score(Friday3, "Kari", 3)));
+        Assert.False(await _store.UpsertScoreAsync(Score(Friday3, "Kari", 6, "changed my mind")));
 
         var day = await _store.GetDayAsync(Friday3);
         var only = Assert.Single(day.Scores);
-        Assert.Equal(9, only.Score);
+        Assert.Equal(6, only.Score);
         Assert.Equal("changed my mind", only.Comment);
-        Assert.Equal(9.0, day.Average);
+        Assert.Equal(6.0, day.Average);
     }
 
     [Fact]
-    public async Task Rejects_out_of_range_scores()
+    public async Task Rejects_scores_outside_the_die()
     {
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _store.UpsertScoreAsync(Score(Friday3, "Ola", 11)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _store.UpsertScoreAsync(Score(Friday3, "Ola", 7)));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _store.UpsertScoreAsync(Score(Friday3, "Ola", 0)));
     }
 
     [Fact]
     public async Task Day_average_and_empty_day()
     {
-        await _store.UpsertScoreAsync(Score(Friday3, "Kari", 8));
-        await _store.UpsertScoreAsync(Score(Friday3, "Ola", 5));
-        await _store.UpsertScoreAsync(Score(Friday3, "Per", 9));
+        await _store.UpsertScoreAsync(Score(Friday3, "Kari", 5));
+        await _store.UpsertScoreAsync(Score(Friday3, "Ola", 2));
+        await _store.UpsertScoreAsync(Score(Friday3, "Per", 6));
 
         var day = await _store.GetDayAsync(Friday3);
         Assert.Equal(3, day.Count);
-        Assert.Equal(22 / 3.0, day.Average, precision: 6);
+        Assert.Equal(13 / 3.0, day.Average, precision: 6);
 
         var empty = await _store.GetDayAsync(Friday2);
         Assert.Equal(0, empty.Count);
@@ -65,28 +65,28 @@ public sealed class ScoreStoreTests : IDisposable
     [Fact]
     public async Task History_is_newest_first_and_limited()
     {
-        await _store.UpsertScoreAsync(Score(Friday1, "Kari", 4));
-        await _store.UpsertScoreAsync(Score(Friday2, "Kari", 7));
-        await _store.UpsertScoreAsync(Score(Friday2, "Ola", 9));
-        await _store.UpsertScoreAsync(Score(Friday3, "Kari", 10));
+        await _store.UpsertScoreAsync(Score(Friday1, "Kari", 2));
+        await _store.UpsertScoreAsync(Score(Friday2, "Kari", 4));
+        await _store.UpsertScoreAsync(Score(Friday2, "Ola", 6));
+        await _store.UpsertScoreAsync(Score(Friday3, "Kari", 6));
 
         var history = await _store.GetHistoryAsync(2);
         Assert.Equal([Friday3, Friday2], history.Select(d => d.CakeDate));
-        Assert.Equal(8.0, history[1].Average);
+        Assert.Equal(5.0, history[1].Average);
     }
 
     [Fact]
     public async Task All_time_stats_find_best_and_worst_friday()
     {
-        await _store.UpsertScoreAsync(Score(Friday1, "Kari", 3));
-        await _store.UpsertScoreAsync(Score(Friday1, "Ola", 4));
-        await _store.UpsertScoreAsync(Score(Friday2, "Kari", 9));
-        await _store.UpsertScoreAsync(Score(Friday3, "Kari", 7));
+        await _store.UpsertScoreAsync(Score(Friday1, "Kari", 1));
+        await _store.UpsertScoreAsync(Score(Friday1, "Ola", 2));
+        await _store.UpsertScoreAsync(Score(Friday2, "Kari", 6));
+        await _store.UpsertScoreAsync(Score(Friday3, "Kari", 4));
 
         var all = await _store.GetAllTimeAsync();
         Assert.Equal(3, all.CakeDays);
         Assert.Equal(4, all.TotalScores);
-        Assert.Equal(23 / 4.0, all.OverallAverage, precision: 6);
+        Assert.Equal(13 / 4.0, all.OverallAverage, precision: 6);
         Assert.Equal(Friday2, all.BestDay!.CakeDate);
         Assert.Equal(Friday1, all.WorstDay!.CakeDate);
     }
@@ -103,15 +103,15 @@ public sealed class ScoreStoreTests : IDisposable
     [Fact]
     public async Task Scorer_stats_group_by_user()
     {
-        await _store.UpsertScoreAsync(Score(Friday1, "Kari", 10));
-        await _store.UpsertScoreAsync(Score(Friday2, "Kari", 8));
-        await _store.UpsertScoreAsync(Score(Friday2, "Ola", 2));
+        await _store.UpsertScoreAsync(Score(Friday1, "Kari", 6));
+        await _store.UpsertScoreAsync(Score(Friday2, "Kari", 4));
+        await _store.UpsertScoreAsync(Score(Friday2, "Ola", 1));
 
         var scorers = await _store.GetScorerStatsAsync();
         Assert.Equal(2, scorers.Count);
         var kari = scorers.Single(s => s.UserName == "Kari");
         Assert.Equal(2, kari.Count);
-        Assert.Equal(9.0, kari.Average);
+        Assert.Equal(5.0, kari.Average);
         Assert.Equal(1, scorers.Single(s => s.UserName == "Ola").Count);
     }
 

@@ -2,14 +2,14 @@
 
 A Microsoft Teams bot that keeps score of the Friday Napoleonskake.
 
-Every Friday at lunch it posts a scoring card into the channel. Everyone picks a score from 1 to 10, optionally with a comment, and the bot tracks it over time: today's average, the trend across Fridays, the best and worst Friday ever, and who the most generous and harshest critics are.
+Every Friday at lunch it posts a scoring card into the channel. Everyone rolls a die from 1 to 6, optionally with a comment, and the bot tracks it over time: today's average, the trend across Fridays, the best and worst Friday ever, and who the most generous and harshest critics are.
 
 ## What it does
 
 | You say (or click)      | The bot does                                                                 |
 |-------------------------|------------------------------------------------------------------------------|
-| Friday 12:00 (automatic) | Posts the scoring card with a dropdown (1–10) and a comment box. Scoring opens |
-| `score 8 nice and crispy` or `8` | Records your score for today. Scoring again replaces it. Only works while scoring is open |
+| Friday 12:00 (automatic) | Posts the scoring card with a dice dropdown (1–6) and a comment box. Scoring opens |
+| `score 5 nice and crispy`, `5` or `⚄` | Records your score for today. Scoring again replaces it. Only works while scoring is open |
 | `results`               | Today's average, a verdict, and everyone's scores with comments              |
 | `history`               | The last 8 Fridays as a bar chart plus the all-time average and trend        |
 | `leaderboard`           | Best/worst Friday, most generous scorer, harshest critic, most dedicated     |
@@ -17,7 +17,7 @@ Every Friday at lunch it posts a scoring card into the channel. Everyone picks a
 | `help`                  | Command list                                                                 |
 | Friday 17:00 (automatic) | Locks the card and posts the final results. Scoring closes                 |
 
-The scoring card updates itself in place as scores come in (count, running average, who scored last), so the channel gets a live tally without spam. In channels, @mention the bot: `@Napoleonskake score 8`.
+The scoring card updates itself in place as scores come in (count, running average, who rolled last), so the channel gets a live tally without spam. In channels, @mention the bot: `@Napoleonskake score 8`.
 
 **Scoring window:** scores are only accepted on Fridays between 12:00 and 17:00 (Europe/Oslo). Outside that window the bot replies with when scoring opens, or that it has closed, and nothing is recorded. `results`, `history` and `leaderboard` work any time; on other days `results` shows the most recent Friday.
 

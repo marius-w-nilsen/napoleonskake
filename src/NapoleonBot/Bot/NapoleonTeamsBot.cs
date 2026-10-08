@@ -45,7 +45,7 @@ public sealed class NapoleonTeamsBot(
 
             case InvalidScoreCommand invalid:
                 var raw = string.IsNullOrEmpty(invalid.Raw) ? "nothing" : $"\"{invalid.Raw}\"";
-                await turnContext.SendActivityAsync($"{raw} is not a score I recognise. Give me a whole number from 1 to 10, e.g. `score 8`.", cancellationToken: ct);
+                await turnContext.SendActivityAsync($"{raw} is not a score I recognise. Give me a whole number from {ScoreScale.Min} to {ScoreScale.Max} or a die face, e.g. `score 5` or `⚄`.", cancellationToken: ct);
                 break;
 
             case ResultsCommand:
@@ -81,7 +81,7 @@ public sealed class NapoleonTeamsBot(
         {
             case "score":
                 var scoreText = submit["score"]?.ToString();
-                if (!int.TryParse(scoreText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var score) || score is < 1 or > 10)
+                if (!int.TryParse(scoreText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var score) || !ScoreScale.IsValid(score))
                 {
                     await turnContext.SendActivityAsync("Pick a score from the list first 🍰", cancellationToken: ct);
                     return;
@@ -132,8 +132,8 @@ public sealed class NapoleonTeamsBot(
         var isNew = await store.UpsertScoreAsync(entry, ct);
         var day = await store.GetDayAsync(cakeDate, ct);
 
-        var verb = isNew ? "scored" : "changed their score to";
-        var reply = $"🍰 **{entry.UserName}** {verb} **{score}/10** – {CardFactory.ScoreLabel(score)}."
+        var verb = isNew ? "rolled" : "re-rolled to";
+        var reply = $"🍰 **{entry.UserName}** {verb} **{CardFactory.Dice(score)}** – {CardFactory.ScoreLabel(score)}."
                     + (comment is null ? "" : $" _\"{comment}\"_")
                     + $"\n\nAverage so far: **{CardFactory.FormatAverage(day.Average)}** from {day.Count} {(day.Count == 1 ? "score" : "scores")}.";
         await turnContext.SendActivityAsync(MessageFactory.Text(reply), ct);

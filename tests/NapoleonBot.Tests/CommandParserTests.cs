@@ -5,19 +5,23 @@ namespace NapoleonBot.Tests;
 public class CommandParserTests
 {
     [Theory]
-    [InlineData("score 8", 8, null)]
-    [InlineData("Score 8 extra crispy today", 8, "extra crispy today")]
-    [InlineData("8", 8, null)]
-    [InlineData("10/10", 10, null)]
-    [InlineData("  7 / 10  soggy bottom", 7, "soggy bottom")]
+    [InlineData("score 5", 5, null)]
+    [InlineData("Score 5 extra crispy today", 5, "extra crispy today")]
+    [InlineData("5", 5, null)]
+    [InlineData("6/6", 6, null)]
+    [InlineData("  4 / 6  soggy bottom", 4, "soggy bottom")]
     [InlineData("/score 3", 3, null)]
-    [InlineData("rate 9", 9, null)]
+    [InlineData("rate 2", 2, null)]
     [InlineData("gi 6 helt greit", 6, "helt greit")]
-    [InlineData("8, it was gooooD", 8, "it was gooooD")]
-    [InlineData("8 - a bit dry", 8, "a bit dry")]
-    [InlineData("score: 9! best so far", 9, "best so far")]
-    [InlineData("7.", 7, null)]
-    [InlineData("10/10!", 10, null)]
+    [InlineData("terning 4", 4, null)]
+    [InlineData("5, it was gooooD", 5, "it was gooooD")]
+    [InlineData("5 - a bit dry", 5, "a bit dry")]
+    [InlineData("score: 6! best so far", 6, "best so far")]
+    [InlineData("4.", 4, null)]
+    [InlineData("6/6!", 6, null)]
+    [InlineData("⚄", 5, null)]
+    [InlineData("⚅ brilliant", 6, "brilliant")]
+    [InlineData("score ⚀ nope", 1, "nope")]
     public void Parses_scores_with_optional_comment(string text, int expectedScore, string? expectedComment)
     {
         var command = Assert.IsType<ScoreCommand>(CommandParser.Parse(text));
@@ -26,13 +30,15 @@ public class CommandParserTests
     }
 
     [Theory]
-    [InlineData("score 11")]
+    [InlineData("score 7")]
+    [InlineData("score 10")]
     [InlineData("score 0")]
     [InlineData("score")]
-    [InlineData("score ten")]
+    [InlineData("score six")]
     [InlineData("0")]
+    [InlineData("7")]
     [InlineData("99")]
-    public void Rejects_scores_outside_one_to_ten(string text)
+    public void Rejects_scores_outside_the_die(string text)
     {
         Assert.IsType<InvalidScoreCommand>(CommandParser.Parse(text));
     }
