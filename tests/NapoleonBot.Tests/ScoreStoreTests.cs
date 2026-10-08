@@ -44,6 +44,65 @@ public sealed class ScoreStoreTests : IDisposable
     {
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _store.UpsertScoreAsync(Score(Friday3, "Ola", 7)));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _store.UpsertScoreAsync(Score(Friday3, "Ola", 0)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _store.UpsertScoreAsync(Score(Friday3, "Ola", 6) with { Modifier = 1 }));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _store.UpsertScoreAsync(Score(Friday3, "Ola", 1) with { Modifier = -1 }));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _store.UpsertScoreAsync(Score(Friday3, "Ola", 4) with { Modifier = 2 }));
+    }
+
+    [Fact]
+    public async Task Modifiers_round_trip_and_count_a_quarter_in_averages()
+    {
+        await _store.UpsertScoreAsync(Score(Friday3, "Kari", 5) with { Modifier = 1 });   // 5.25
+        await _store.UpsertScoreAsync(Score(Friday3, "Ola", 3) with { Modifier = -1 });   // 2.75
+        await _store.UpsertScoreAsync(Score(Friday2, "Kari", 4));                          // 4.0
+
+        var day = await _store.GetDayAsync(Friday3);
+        Assert.Equal(1, day.Scores.Single(s => s.UserName == "Kari").Modifier);
+        Assert.Equal("⚄ 5+", day.Scores.Single(s => s.UserName == "Kari").Display);
+        Assert.Equal("⚂ 3-", day.Scores.Single(s => s.UserName == "Ola").Display);
+        Assert.Equal(4.0, day.Average, precision: 6);
+
+        var kari = (await _store.GetScorerStatsAsync()).Single(s => s.UserName == "Kari");
+        Assert.Equal((5.25 + 4.0) / 2, kari.Average, precision: 6);
+
+        var all = await _store.GetAllTimeAsync();
+        Assert.Equal((5.25 + 2.75 + 4.0) / 3, all.OverallAverage, precision: 6);
+    }
+
+    [Fact]
+    public async Task Adds_modifier_column_to_a_database_from_before_the_feature()
+    {
+        var oldDb = Path.Combine(Path.GetTempPath(), $"napoleon-old-{Guid.NewGuid():N}.db");
+        try
+        {
+            await using (var conn = new SqliteConnection($"Data Source={oldDb};Pooling=False"))
+            {
+                await conn.OpenAsync();
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    CREATE TABLE scores (
+                        cake_date TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT NOT NULL,
+                        score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 10), comment TEXT, created_at TEXT NOT NULL,
+                        PRIMARY KEY (cake_date, user_id));
+                    INSERT INTO scores VALUES ('2026-09-18', 'kari', 'Kari', 4, NULL, '2026-09-18T12:00:00+00:00');
+                    """;
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            var store = new ScoreStore($"Data Source={oldDb};Pooling=False");
+            var day = await store.GetDayAsync(new DateOnly(2026, 9, 18));
+            var kari = Assert.Single(day.Scores);
+            Assert.Equal(4, kari.Score);
+            Assert.Equal(0, kari.Modifier);
+
+            await store.UpsertScoreAsync(Score(new DateOnly(2026, 9, 18), "Kari", 4) with { Modifier = 1 });
+            Assert.Equal(4.25, (await store.GetDayAsync(new DateOnly(2026, 9, 18))).Average);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(oldDb);
+        }
     }
 
     [Fact]

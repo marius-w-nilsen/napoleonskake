@@ -28,8 +28,8 @@ public static class CardFactory
         _ => "Call the authorities",
     };
 
-    /// <summary>"⚄ 5" – die face plus number, used wherever a single score is shown.</summary>
-    public static string Dice(int score) => $"{ScoreScale.Die(score)} {score}";
+    /// <summary>"⚄ 5+" – die face, number and modifier, used wherever a single score is shown.</summary>
+    public static string Dice(int score, int modifier = 0) => ScoreScale.Format(score, modifier);
 
     public static int Rounded(double average) => Math.Clamp((int)Math.Round(average, MidpointRounding.AwayFromZero), ScoreScale.Min, ScoreScale.Max);
 
@@ -44,7 +44,7 @@ public static class CardFactory
     public static string HelpText(ScheduleOptions schedule) => $"""
         **🍰 Napoleonskake scoring**
 
-        - `score 5`, just `5`, or a die face `⚄` – score today's cake (1–6). Add a comment: `score 5 extra crispy today`
+        - `score 5`, just `5`, or a die face `⚄` – score today's cake (1–6). School style works too: `5+` or `3-`. Add a comment: `score 5 extra crispy today`
         - `results` – today's scores and average
         - `history` – the last Fridays, as a trend
         - `leaderboard` – best and worst Friday ever, most generous and harshest scorers
@@ -68,8 +68,14 @@ public static class CardFactory
 
         if (isOpen)
         {
+            // 6, 6-, 5+, 5, 5-, ... 1+, 1: every valid score and modifier, highest first. Plain numbers carry the label.
             var choices = Enumerable.Range(ScoreScale.Min, ScoreScale.Max - ScoreScale.Min + 1).Reverse()
-                .Select(n => new { title = $"{Dice(n)} – {ScoreLabel(n)}", value = n.ToString(CultureInfo.InvariantCulture) })
+                .SelectMany(n => new[] { 1, 0, -1 }.Where(m => ScoreScale.IsValid(n, m)).Select(m => (Score: n, Modifier: m)))
+                .Select(c => new
+                {
+                    title = Dice(c.Score, c.Modifier) + (c.Modifier == 0 ? $" – {ScoreLabel(c.Score)}" : ""),
+                    value = $"{c.Score.ToString(CultureInfo.InvariantCulture)}{ScoreScale.ModifierSign(c.Modifier)}",
+                })
                 .ToArray();
 
             body.Add(new { type = "TextBlock", text = $"Lunch verdict time. Roll the die on today's cake. Scoring closes at {closesAt}.", wrap = true });
@@ -105,7 +111,7 @@ public static class CardFactory
 
         var latest = day.Scores.MaxBy(s => s.CreatedAt)!;
         var plural = day.Count == 1 ? "score" : "scores";
-        return $"{day.Count} {plural} so far · average {FormatAverage(day.Average)} {Bar(day.Average)} · latest: {latest.UserName} rolled {Dice(latest.Score)}";
+        return $"{day.Count} {plural} so far · average {FormatAverage(day.Average)} {Bar(day.Average)} · latest: {latest.UserName} rolled {latest.Display}";
     }
 
     private static string FinalLine(DaySummary day) => day.Count == 0
@@ -153,9 +159,9 @@ public static class CardFactory
             {
                 type = "FactSet",
                 facts = day.Scores
-                    .OrderByDescending(s => s.Score)
+                    .OrderByDescending(s => s.Value)
                     .ThenBy(s => s.CreatedAt)
-                    .Select(s => new { title = s.UserName, value = Dice(s.Score) + (s.Comment is null ? "" : $" – {s.Comment}") })
+                    .Select(s => new { title = s.UserName, value = s.Display + (s.Comment is null ? "" : $" – {s.Comment}") })
                     .ToArray(),
             });
         }

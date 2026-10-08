@@ -64,7 +64,31 @@ public sealed class ScoreStore
             );
             """;
         cmd.ExecuteNonQuery();
+
+        // Added after the first release: "+" / "-" modifiers. Older databases get the column on startup.
+        if (!ColumnExists(conn, "scores", "modifier"))
+        {
+            using var alter = conn.CreateCommand();
+            alter.CommandText = "ALTER TABLE scores ADD COLUMN modifier INTEGER NOT NULL DEFAULT 0";
+            alter.ExecuteNonQuery();
+        }
     }
+
+    private static bool ColumnExists(SqliteConnection conn, string table, string column)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({table})";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>SQL expression for a row's numeric value, matching <see cref="ScoreEntry.Value"/>.</summary>
+    private static readonly string ValueSql = $"(score + modifier * {ScoreScale.ModifierStep.ToString(System.Globalization.CultureInfo.InvariantCulture)})";
 
     private SqliteConnection Open()
     {
@@ -81,8 +105,8 @@ public sealed class ScoreStore
     /// </summary>
     public async Task<bool> UpsertScoreAsync(ScoreEntry entry, CancellationToken ct = default)
     {
-        if (!ScoreScale.IsValid(entry.Score))
-            throw new ArgumentOutOfRangeException(nameof(entry), $"Score must be between {ScoreScale.Min} and {ScoreScale.Max}.");
+        if (!ScoreScale.IsValid(entry.Score, entry.Modifier))
+            throw new ArgumentOutOfRangeException(nameof(entry), $"Score must be between {ScoreScale.Min} and {ScoreScale.Max}, with at most one + or -.");
 
         await using var conn = Open();
         await using var exists = conn.CreateCommand();
@@ -93,11 +117,12 @@ public sealed class ScoreStore
 
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO scores (cake_date, user_id, user_name, score, comment, created_at)
-            VALUES ($d, $u, $n, $s, $c, $t)
+            INSERT INTO scores (cake_date, user_id, user_name, score, modifier, comment, created_at)
+            VALUES ($d, $u, $n, $s, $m, $c, $t)
             ON CONFLICT (cake_date, user_id) DO UPDATE SET
                 user_name  = excluded.user_name,
                 score      = excluded.score,
+                modifier   = excluded.modifier,
                 comment    = excluded.comment,
                 created_at = excluded.created_at
             """;
@@ -105,6 +130,7 @@ public sealed class ScoreStore
         cmd.Parameters.AddWithValue("$u", entry.UserId);
         cmd.Parameters.AddWithValue("$n", entry.UserName);
         cmd.Parameters.AddWithValue("$s", entry.Score);
+        cmd.Parameters.AddWithValue("$m", entry.Modifier);
         cmd.Parameters.AddWithValue("$c", (object?)entry.Comment ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$t", entry.CreatedAt.ToString("O"));
         await cmd.ExecuteNonQueryAsync(ct);
@@ -116,7 +142,7 @@ public sealed class ScoreStore
         await using var conn = Open();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT cake_date, user_id, user_name, score, comment, created_at
+            SELECT cake_date, user_id, user_name, score, comment, created_at, modifier
             FROM scores WHERE cake_date = $d
             ORDER BY created_at
             """;
@@ -131,7 +157,7 @@ public sealed class ScoreStore
         await using var conn = Open();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT cake_date, user_id, user_name, score, comment, created_at
+            SELECT cake_date, user_id, user_name, score, comment, created_at, modifier
             FROM scores
             WHERE cake_date IN (SELECT DISTINCT cake_date FROM scores ORDER BY cake_date DESC LIMIT $n)
             ORDER BY cake_date DESC, created_at
@@ -146,11 +172,11 @@ public sealed class ScoreStore
         await using var conn = Open();
         await using var cmd = conn.CreateCommand();
         // user_name is not aggregated; SQLite returns one of the rows' names, and the upsert keeps names current anyway.
-        cmd.CommandText = """
-            SELECT user_id, user_name, COUNT(*), AVG(score)
+        cmd.CommandText = $"""
+            SELECT user_id, user_name, COUNT(*), AVG({ValueSql})
             FROM scores
             GROUP BY user_id
-            ORDER BY COUNT(*) DESC, AVG(score) DESC
+            ORDER BY COUNT(*) DESC, AVG({ValueSql}) DESC
             """;
         var result = new List<ScorerStats>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -164,7 +190,7 @@ public sealed class ScoreStore
         await using var conn = Open();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT cake_date, user_id, user_name, score, comment, created_at
+            SELECT cake_date, user_id, user_name, score, comment, created_at, modifier
             FROM scores ORDER BY cake_date, created_at
             """;
         var scores = await ReadScoresAsync(cmd, ct);
@@ -175,7 +201,7 @@ public sealed class ScoreStore
         return new AllTimeStats(
             CakeDays: days.Count,
             TotalScores: scores.Count,
-            OverallAverage: scores.Average(s => s.Score),
+            OverallAverage: scores.Average(s => s.Value),
             BestDay: days.OrderByDescending(d => d.Average).ThenByDescending(d => d.Count).First(),
             WorstDay: days.OrderBy(d => d.Average).ThenByDescending(d => d.Count).First());
     }
@@ -192,7 +218,8 @@ public sealed class ScoreStore
                 reader.GetString(2),
                 reader.GetInt32(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
-                DateTimeOffset.Parse(reader.GetString(5))));
+                DateTimeOffset.Parse(reader.GetString(5)),
+                Modifier: reader.GetInt32(6)));
         }
         return result;
     }

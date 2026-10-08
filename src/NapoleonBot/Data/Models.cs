@@ -8,10 +8,24 @@ public static class ScoreScale
 
     private const string DiceFaces = "⚀⚁⚂⚃⚄⚅";
 
+    /// <summary>How much a "+" or "-" moves the numeric value, school-test style: 5+ is 5.25, 3- is 2.75.</summary>
+    public const double ModifierStep = 0.25;
+
     public static bool IsValid(int score) => score is >= Min and <= Max;
+
+    /// <summary>A modifier is -1, 0 or +1. There is nothing above 6 or below 1, so 6+ and 1- are not allowed.</summary>
+    public static bool IsValid(int score, int modifier) =>
+        IsValid(score) && modifier is >= -1 and <= 1 && !(score == Max && modifier > 0) && !(score == Min && modifier < 0);
+
+    public static double Value(int score, int modifier) => score + modifier * ModifierStep;
+
+    public static string ModifierSign(int modifier) => modifier switch { > 0 => "+", < 0 => "-", _ => "" };
 
     /// <summary>The die face for a score, e.g. 4 → ⚃.</summary>
     public static string Die(int score) => DiceFaces[Math.Clamp(score, Min, Max) - 1].ToString();
+
+    /// <summary>"⚄ 5+" – die face, number and modifier, used wherever a single score is shown.</summary>
+    public static string Format(int score, int modifier = 0) => $"{Die(score)} {score}{ModifierSign(modifier)}";
 
     /// <summary>The score a die face stands for, or null if the text is not a single die face.</summary>
     public static int? FromDie(string text) =>
@@ -25,13 +39,21 @@ public sealed record ScoreEntry(
     string UserName,
     int Score,
     string? Comment,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    int Modifier = 0)
+{
+    /// <summary>The numeric value used for averages: the score plus a quarter per "+" or "-".</summary>
+    public double Value => ScoreScale.Value(Score, Modifier);
+
+    /// <summary>"⚄ 5+"</summary>
+    public string Display => ScoreScale.Format(Score, Modifier);
+}
 
 /// <summary>All scores for a single cake day.</summary>
 public sealed record DaySummary(DateOnly CakeDate, IReadOnlyList<ScoreEntry> Scores)
 {
     public int Count => Scores.Count;
-    public double Average => Scores.Count == 0 ? 0 : Scores.Average(s => s.Score);
+    public double Average => Scores.Count == 0 ? 0 : Scores.Average(s => s.Value);
 }
 
 /// <summary>How one person tends to score, across all cake days.</summary>

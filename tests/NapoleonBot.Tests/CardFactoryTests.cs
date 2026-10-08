@@ -18,14 +18,15 @@ public class CardFactoryTests
     }
 
     [Fact]
-    public void Scoring_card_offers_six_dice_choices_and_carries_the_cake_date()
+    public void Scoring_card_offers_every_die_value_with_modifiers_and_carries_the_cake_date()
     {
         var card = Content(CardFactory.ScoringCard(Friday, new DaySummary(Friday, []), isOpen: true, closesAt: "17:00"));
 
         var choiceSet = card["body"]!.Single(b => (string?)b["type"] == "Input.ChoiceSet");
         var values = choiceSet["choices"]!.Select(c => (string)c["value"]!).ToList();
-        Assert.Equal(["6", "5", "4", "3", "2", "1"], values);
+        Assert.Equal(["6", "6-", "5+", "5", "5-", "4+", "4", "4-", "3+", "3", "3-", "2+", "2", "2-", "1+", "1"], values);
         Assert.StartsWith("⚅ 6 – ", (string?)choiceSet["choices"]![0]!["title"]);
+        Assert.Equal("⚅ 6-", (string?)choiceSet["choices"]![1]!["title"]);
 
         var submit = card["actions"]!.First();
         Assert.Equal("score", (string?)submit["data"]!["action"]);
@@ -62,14 +63,15 @@ public class CardFactoryTests
     [Fact]
     public void Results_card_lists_scores_highest_first_with_dice_and_comments()
     {
-        var day = new DaySummary(Friday, [Score("Kari", 4, "a bit dry"), Score("Ola", 6)]);
+        var day = new DaySummary(Friday, [Score("Kari", 4, "a bit dry"), Score("Ola", 6), Score("Per", 4) with { Modifier = 1 }]);
         var card = Content(CardFactory.ResultsCard(day));
 
         var facts = card["body"]!.Single(b => (string?)b["type"] == "FactSet")["facts"]!;
-        Assert.Equal("Ola", (string?)facts[0]!["title"]);
+        Assert.Equal(["Ola", "Per", "Kari"], facts.Select(f => (string?)f["title"]));
         Assert.Equal("⚅ 6", (string?)facts[0]!["value"]);
-        Assert.Equal("⚃ 4 – a bit dry", (string?)facts[1]!["value"]);
-        Assert.Contains("⚄ 5.0", card.ToString());
+        Assert.Equal("⚃ 4+", (string?)facts[1]!["value"]);
+        Assert.Equal("⚃ 4 – a bit dry", (string?)facts[2]!["value"]);
+        Assert.Contains("⚄ 4.8", card.ToString()); // (6 + 4.25 + 4) / 3
     }
 
     [Fact]

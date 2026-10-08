@@ -26,6 +26,28 @@ public class CommandParserTests
     {
         var command = Assert.IsType<ScoreCommand>(CommandParser.Parse(text));
         Assert.Equal(expectedScore, command.Score);
+        Assert.Equal(0, command.Modifier);
+        Assert.Equal(expectedComment, command.Comment);
+    }
+
+    [Theory]
+    [InlineData("5+", 5, 1, null)]
+    [InlineData("3-", 3, -1, null)]
+    [InlineData("5+ really good", 5, 1, "really good")]
+    [InlineData("3-, bit soggy", 3, -1, "bit soggy")]
+    [InlineData("score 4-", 4, -1, null)]
+    [InlineData("score 4+ nice", 4, 1, "nice")]
+    [InlineData("5+/6", 5, 1, null)]
+    [InlineData("6-", 6, -1, null)]
+    [InlineData("1+", 1, 1, null)]
+    [InlineData("⚄+", 5, 1, null)]
+    [InlineData("⚂- custard crimes", 3, -1, "custard crimes")]
+    [InlineData("4 - nice", 4, 0, "nice")] // a spaced dash is a separator, not a minus
+    public void Parses_plus_and_minus_modifiers(string text, int expectedScore, int expectedModifier, string? expectedComment)
+    {
+        var command = Assert.IsType<ScoreCommand>(CommandParser.Parse(text));
+        Assert.Equal(expectedScore, command.Score);
+        Assert.Equal(expectedModifier, command.Modifier);
         Assert.Equal(expectedComment, command.Comment);
     }
 
@@ -38,9 +60,29 @@ public class CommandParserTests
     [InlineData("0")]
     [InlineData("7")]
     [InlineData("99")]
+    [InlineData("6+")]   // nothing above a six
+    [InlineData("1-")]   // nothing below a one
+    [InlineData("5++")]
+    [InlineData("⚅+")]
     public void Rejects_scores_outside_the_die(string text)
     {
         Assert.IsType<InvalidScoreCommand>(CommandParser.Parse(text));
+    }
+
+    [Theory]
+    [InlineData("5+", true, 5, 1)]
+    [InlineData("3-", true, 3, -1)]
+    [InlineData("4", true, 4, 0)]
+    [InlineData("6+", false, 6, 1)]
+    [InlineData("abc", false, 0, 0)]
+    public void Score_token_parser_is_reusable_for_card_values(string token, bool ok, int score, int modifier)
+    {
+        Assert.Equal(ok, CommandParser.TryParseScoreToken(token, out var s, out var m));
+        if (ok)
+        {
+            Assert.Equal(score, s);
+            Assert.Equal(modifier, m);
+        }
     }
 
     [Theory]

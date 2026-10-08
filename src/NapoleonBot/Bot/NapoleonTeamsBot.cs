@@ -40,12 +40,13 @@ public sealed class NapoleonTeamsBot(
         switch (command)
         {
             case ScoreCommand score:
-                await RecordScoreAsync(turnContext, score.Score, score.Comment, cardDate: null, ct);
+                await RecordScoreAsync(turnContext, score.Score, score.Modifier, score.Comment, cardDate: null, ct);
                 break;
 
             case InvalidScoreCommand invalid:
                 var raw = string.IsNullOrEmpty(invalid.Raw) ? "nothing" : $"\"{invalid.Raw}\"";
-                await turnContext.SendActivityAsync($"{raw} is not a score I recognise. Give me a whole number from {ScoreScale.Min} to {ScoreScale.Max} or a die face, e.g. `score 5` or `⚄`.", cancellationToken: ct);
+                var hint = invalid.Raw is "6+" ? " There is nothing above a 6." : invalid.Raw is "1-" ? " There is nothing below a 1. Sadly." : "";
+                await turnContext.SendActivityAsync($"{raw} is not a score I recognise.{hint} Give me a number from {ScoreScale.Min} to {ScoreScale.Max}, optionally with + or -, or a die face: `score 5`, `4+`, `3-`, `⚄`.", cancellationToken: ct);
                 break;
 
             case ResultsCommand:
@@ -80,14 +81,14 @@ public sealed class NapoleonTeamsBot(
         switch (submit["action"]?.ToString())
         {
             case "score":
-                var scoreText = submit["score"]?.ToString();
-                if (!int.TryParse(scoreText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var score) || !ScoreScale.IsValid(score))
+                var scoreText = submit["score"]?.ToString() ?? string.Empty;
+                if (!CommandParser.TryParseScoreToken(scoreText, out var score, out var modifier))
                 {
                     await turnContext.SendActivityAsync("Pick a score from the list first 🍰", cancellationToken: ct);
                     return;
                 }
                 var comment = submit["comment"]?.ToString();
-                await RecordScoreAsync(turnContext, score, string.IsNullOrWhiteSpace(comment) ? null : comment.Trim(), cardDate, ct);
+                await RecordScoreAsync(turnContext, score, modifier, string.IsNullOrWhiteSpace(comment) ? null : comment.Trim(), cardDate, ct);
                 break;
 
             case "results":
@@ -101,7 +102,7 @@ public sealed class NapoleonTeamsBot(
     }
 
     /// <summary>Records a score for today, but only while the scoring window is open.</summary>
-    private async Task RecordScoreAsync(ITurnContext turnContext, int score, string? comment, DateOnly? cardDate, CancellationToken ct)
+    private async Task RecordScoreAsync(ITurnContext turnContext, int score, int modifier, string? comment, DateOnly? cardDate, CancellationToken ct)
     {
         var now = _schedule.LocalNow(clock);
         var state = ScoringWindow.Evaluate(now, _schedule);
@@ -127,13 +128,14 @@ public sealed class NapoleonTeamsBot(
             UserName: string.IsNullOrWhiteSpace(from.Name) ? "Anonymous cake critic" : from.Name,
             score,
             comment,
-            clock.GetUtcNow());
+            clock.GetUtcNow(),
+            Modifier: modifier);
 
         var isNew = await store.UpsertScoreAsync(entry, ct);
         var day = await store.GetDayAsync(cakeDate, ct);
 
         var verb = isNew ? "rolled" : "re-rolled to";
-        var reply = $"🍰 **{entry.UserName}** {verb} **{CardFactory.Dice(score)}** – {CardFactory.ScoreLabel(score)}."
+        var reply = $"🍰 **{entry.UserName}** {verb} **{entry.Display}** – {CardFactory.ScoreLabel(score)}."
                     + (comment is null ? "" : $" _\"{comment}\"_")
                     + $"\n\nAverage so far: **{CardFactory.FormatAverage(day.Average)}** from {day.Count} {(day.Count == 1 ? "score" : "scores")}.";
         await turnContext.SendActivityAsync(MessageFactory.Text(reply), ct);
